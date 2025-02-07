@@ -1,6 +1,17 @@
 # TRMNL Firmware
 
-created for the [TRMNL](https://usetrmnl.com) e-ink display.
+~created for the [TRMNL](https://usetrmnl.com) e-ink display.~
+
+This fork is created for the Waveshare ESP32 and 7.5inch e-ink display.
+
+### Problems
+
+Bootloops when intializing wifi
+
+### Working
+
+Display (inverted on mine) shows TRMNL logo on startup
+
 
 ## **Algorithm block scheme**
 
