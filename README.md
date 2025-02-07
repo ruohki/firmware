@@ -12,6 +12,11 @@ Bootloops when intializing wifi
 
 Display (inverted on mine) shows TRMNL logo on startup
 
+### Used hardware
+
+- [Waveshare epaper ESP32 board](https://www.tinytronics.nl/nl/development-boards/microcontroller-boards/met-wi-fi/waveshare-universeel-e-paper-raw-panel-driver-board-esp32)
+- [Waveshare 7.5 inch E-Ink E-Paper Display](https://www.tinytronics.nl/nl/displays/e-ink/waveshare-7.5-inch-e-ink-e-paper-display)
+
 
 ## **Algorithm block scheme**
 
