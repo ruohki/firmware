@@ -1569,8 +1569,9 @@ static void goToSleep(void)
   preferences.putUInt(PREFERENCES_LAST_SLEEP_TIME, getTime());
   preferences.end();
   esp_sleep_enable_timer_wakeup(time_to_sleep * SLEEP_uS_TO_S_FACTOR);
-  esp_deep_sleep_enable_gpio_wakeup(1 << PIN_INTERRUPT,
-                                    ESP_GPIO_WAKEUP_GPIO_LOW);
+#if SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP
+  esp_deep_sleep_enable_gpio_wakeup(1 << PIN_INTERRUPT, ESP_GPIO_WAKEUP_GPIO_LOW);
+#endif
   esp_deep_sleep_start();
 }
 
