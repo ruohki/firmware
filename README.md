@@ -6,16 +6,26 @@ This fork is created for the Waveshare ESP32 and 7.5inch e-ink display.
 
 ### Problems
 
-Bootloops when intializing wifi
+none, tell me
 
 ### Working
 
-Display (inverted on mine) shows TRMNL logo on startup
+Display
+Sleep
 
 ### Used hardware
 
 - [Waveshare epaper ESP32 board](https://www.tinytronics.nl/nl/development-boards/microcontroller-boards/met-wi-fi/waveshare-universeel-e-paper-raw-panel-driver-board-esp32)
 - [Waveshare 7.5 inch E-Ink E-Paper Display](https://www.tinytronics.nl/nl/displays/e-ink/waveshare-7.5-inch-e-ink-e-paper-display)
+
+### Config
+
+https://shop.usetrmnl.com/products/byod, $20 one time fee (subject to change, likely a small subscription in near future)
+https://usetrmnl.com/claim-a-device to create an API only account
+
+Copy the mac address from your account and add it in config.h > DEVICE_MAC
+
+Build and upload the firmware
 
 
 ## **Algorithm block scheme**
