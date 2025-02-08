@@ -547,10 +547,24 @@ static https_request_err_e downloadAndShow(const char *url)
     Log.info("%s [%d]: [HTTPS] GET...\r\n", __FILE__, __LINE__);
     Log.info("%s [%d]: [HTTPS] GET Route: %s\r\n", __FILE__, __LINE__, new_url);
     // start connection and send HTTP header
-    https.addHeader("ID", WiFi.macAddress());
+    String mac = "";
+    #if BYOD
+    mac =  String(DEVICE_MAC);
+    #else
+    mac = WiFi.macAddress();
+    #endif
+    
+    https.addHeader("ID", mac);
+    Log.info("%s [%d]: Device MAC address: %s\r\n", __FILE__, __LINE__, mac.c_str());
+    
     https.addHeader("Access-Token", api_key);
     https.addHeader("Refresh-Rate", String(refresh_rate));
+    #if BYOD    
+    //Set battery to 100%
+    https.addHeader("Battery-Voltage", "4.2");
+    # else
     https.addHeader("Battery-Voltage", String(battery_voltage));
+    #endif
     https.addHeader("FW-Version", fw_version);
     https.addHeader("RSSI", String(WiFi.RSSI()));
 
@@ -1244,9 +1258,15 @@ static void getDeviceCredentials(const char *url)
         Log.info("%s [%d]: RSSI: %d\r\n", __FILE__, __LINE__, WiFi.RSSI());
         Log.info("%s [%d]: [HTTPS] GET...\r\n", __FILE__, __LINE__);
         // start connection and send HTTP header
+        String mac = "";
+        #if BYOD
+        mac =  String(DEVICE_MAC);
+        #else
+        mac = WiFi.macAddress();
+        #endif
 
-        https.addHeader("ID", WiFi.macAddress());
-        Log.info("%s [%d]: Device MAC address: %s\r\n", __FILE__, __LINE__, WiFi.macAddress().c_str());
+        https.addHeader("ID", mac);
+        Log.info("%s [%d]: Device MAC address: %s\r\n", __FILE__, __LINE__, mac.c_str());
 
         int httpCode = https.GET();
 

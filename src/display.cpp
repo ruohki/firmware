@@ -21,7 +21,7 @@ void display_init(void)
 
     Log.info("%s [%d]: screen hw start\r\n", __FILE__, __LINE__);
     //EPD_7IN5_V2_Init_New();
-    EPD_7IN5_V2_Init_Fast();
+    EPD_7IN5_V2_Init_New();
     Log.info("%s [%d]: screen hw end\r\n", __FILE__, __LINE__);
 }
 
