@@ -25,6 +25,9 @@
 #include <special_function.h>
 #include <api_response_parsing.h>
 #include "logging_parcers.h"
+#include <regex>
+#include <string>
+
 
 bool pref_clear = false;
 
@@ -90,6 +93,7 @@ void wait_for_serial()
  */
 void bl_init(void)
 {
+  WifiCaptivePortal.setDefaultBaseUrl(API_BASE_URL);
 
   Serial.begin(115200);
   Log.begin(LOG_LEVEL_VERBOSE, &Serial);
@@ -296,7 +300,7 @@ void bl_init(void)
   {
     Log.info("%s [%d]: API key or friendly ID not saved\r\n", __FILE__, __LINE__);
     // lets get the api key and friendly ID
-    getDeviceCredentials(API_BASE_URL);
+    getDeviceCredentials(WifiCaptivePortal.getServerURL().c_str());
   }
   else
   {
@@ -306,7 +310,7 @@ void bl_init(void)
   log_retry = true;
 
   // OTA checking, image checking and drawing
-  https_request_err_e request_result = downloadAndShow(API_BASE_URL);
+  https_request_err_e request_result = downloadAndShow(WifiCaptivePortal.getServerURL().c_str());
   Log.info("%s [%d]: request result - %d\r\n", __FILE__, __LINE__, request_result);
 
   if (!preferences.isKey(PREFERENCES_CONNECT_API_RETRY_COUNT))
@@ -534,7 +538,7 @@ static https_request_err_e downloadAndShow(const char *url)
 
     float battery_voltage = readBatteryVoltage();
 
-    Log.info("%s [%d]: Added headers:\n\rID: %s\n\rSpecial function: %d\n\rAccess-Token: %s\n\rRefresh_Rate: %s\n\rBattery-Voltage: %s\n\rFW-Version: %s\r\nRSSI: %s\r\n", __FILE__, __LINE__, WiFi.macAddress().c_str(), special_function, api_key.c_str(), String(refresh_rate).c_str(), String(battery_voltage).c_str(), fw_version.c_str(), String(WiFi.RSSI()));
+    Log.info("%s [%d]: Added headers:\n\rID: %s\n\rSpecial function: %d\n\rAccess-Token: %s\n\rRefresh_Rate: %s\n\rBattery-Voltage: %s\n\rFW-Version: %s\r\nRSSI: %s\r\n", __FILE__, __LINE__, WifiCaptivePortal.getDeviceMac().c_str(), special_function, api_key.c_str(), String(refresh_rate).c_str(), String(battery_voltage).c_str(), fw_version.c_str(), String(WiFi.RSSI()));
 
     if (!https.begin(*client, new_url))
     {
@@ -547,24 +551,20 @@ static https_request_err_e downloadAndShow(const char *url)
     Log.info("%s [%d]: [HTTPS] GET...\r\n", __FILE__, __LINE__);
     Log.info("%s [%d]: [HTTPS] GET Route: %s\r\n", __FILE__, __LINE__, new_url);
     // start connection and send HTTP header
-    String mac = "";
-    #if BYOD
-    mac =  String(DEVICE_MAC);
-    #else
-    mac = WiFi.macAddress();
-    #endif
-    
+    String mac = WifiCaptivePortal.getDeviceMac().c_str();
     https.addHeader("ID", mac);
-    Log.info("%s [%d]: Device MAC address: %s\r\n", __FILE__, __LINE__, mac.c_str());
+    Log.info("%s [%d]: Device MAC address: %s\r\n", __FILE__, __LINE__, mac);
     
     https.addHeader("Access-Token", api_key);
     https.addHeader("Refresh-Rate", String(refresh_rate));
-    #if BYOD    
-    //Set battery to 100%
-    https.addHeader("Battery-Voltage", "4.2");
-    # else
-    https.addHeader("Battery-Voltage", String(battery_voltage));
-    #endif
+    std::string macStd(mac.c_str());
+    bool isValidMac = std::regex_match(macStd, std::regex("^(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$"));
+
+    if(isValidMac){
+      https.addHeader("Battery-Voltage", String(battery_voltage));
+    }else{
+      https.addHeader("Battery-Voltage", "4.2");
+    }
     https.addHeader("FW-Version", fw_version);
     https.addHeader("RSSI", String(WiFi.RSSI()));
 
@@ -1258,15 +1258,10 @@ static void getDeviceCredentials(const char *url)
         Log.info("%s [%d]: RSSI: %d\r\n", __FILE__, __LINE__, WiFi.RSSI());
         Log.info("%s [%d]: [HTTPS] GET...\r\n", __FILE__, __LINE__);
         // start connection and send HTTP header
-        String mac = "";
-        #if BYOD
-        mac =  String(DEVICE_MAC);
-        #else
-        mac = WiFi.macAddress();
-        #endif
+        String mac = WifiCaptivePortal.getDeviceMac().c_str();
 
         https.addHeader("ID", mac);
-        Log.info("%s [%d]: Device MAC address: %s\r\n", __FILE__, __LINE__, mac.c_str());
+        Log.info("%s [%d]: Device MAC address: %s\r\n", __FILE__, __LINE__, mac);
 
         int httpCode = https.GET();
 
@@ -1666,7 +1661,7 @@ static void log_POST(char *log_buffer, size_t size)
   }
 
   LogApiInput input{api_key, log_buffer};
-  auto result = submitLogToApi(input, API_BASE_URL);
+  auto result = submitLogToApi(input, WifiCaptivePortal.getServerURL().c_str());
   if (!result)
   {
     Log_info("Was unable to send log to API; saving locally for later.");
@@ -1711,7 +1706,7 @@ static void checkLogNotes(void)
     Log.info("%s [%d]: need to send the log\r\n", __FILE__, __LINE__);
 
     LogApiInput input{api_key, log.c_str()};
-    result = submitLogToApi(input, API_BASE_URL);
+    result = submitLogToApi(input, WifiCaptivePortal.getServerURL().c_str());
   }
   else
   {

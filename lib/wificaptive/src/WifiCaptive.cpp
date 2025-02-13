@@ -112,18 +112,32 @@ void WifiCaptive::setUpWebserver(AsyncWebServer &server, const IPAddress &localI
 		request->send(200, "application/json", json);
 		json = String(); });
 
-    AsyncCallbackJsonWebHandler *handler = new AsyncCallbackJsonWebHandler("/connect",[&](AsyncWebServerRequest *request, JsonVariant &json)
+    AsyncCallbackJsonWebHandler *handler = new AsyncCallbackJsonWebHandler("/connect", [&](AsyncWebServerRequest *request, JsonVariant &json)
                                                                            {
 		JsonObject data = json.as<JsonObject>();
 		String ssid = data["ssid"];
 		String pswd = data["pswd"];
 		_ssid = ssid;
 		_password = pswd;
-		String mac = WiFi.macAddress();
+		String mac = getDeviceMac();
 		String message =  "{\"ssid\":\"" + _ssid +"\",\"mac\":\"" + mac +"\"}";
 		request->send(200, "application/json", message); });
 
     server.addHandler(handler);
+    
+    AsyncCallbackJsonWebHandler *configHandler = new AsyncCallbackJsonWebHandler("/save-config", [&](AsyncWebServerRequest *request, JsonVariant &json)
+                                                                                 {
+        JsonObject data = json.as<JsonObject>();
+        bool byod = data["byod"];
+        String deviceId = data["deviceId"];
+        bool byos = data["byos"];
+        String serverUrl = data["serverUrl"];
+        // Save the configuration using the new member function:
+        saveDeviceConfig(byod, deviceId, byos, serverUrl);
+        String message = "{ \"success\": true }";
+        request->send(200, "application/json", message); });
+
+    server.addHandler(configHandler);
 
     server.onNotFound([](AsyncWebServerRequest *request)
                       { request->redirect(LocalIPURL); });
@@ -236,7 +250,7 @@ void WifiCaptive::resetSettings()
 {
     Preferences preferences;
     preferences.begin("wificaptive", false);
-    for(int i = 0; i < WIFI_MAX_SAVED_CREDS; i++)
+    for (int i = 0; i < WIFI_MAX_SAVED_CREDS; i++)
     {
         preferences.remove(WIFI_SSID_KEY(i));
         preferences.remove(WIFI_PSWD_KEY(i));
@@ -318,7 +332,7 @@ void WifiCaptive::readWifiCredentials()
     Preferences preferences;
     preferences.begin("wificaptive", true);
     size_t len = preferences.getBytesLength(WIFI_SSID_KEY(0));
-    for(int i = 0; i < WIFI_MAX_SAVED_CREDS; i++)
+    for (int i = 0; i < WIFI_MAX_SAVED_CREDS; i++)
     {
         _savedWifis[i].ssid = preferences.getString(WIFI_SSID_KEY(i), "");
         _savedWifis[i].pswd = preferences.getString(WIFI_PSWD_KEY(i), "");
@@ -334,8 +348,8 @@ void WifiCaptive::saveWifiCredentials(String ssid, String pass)
 
     for (u16_t i = WIFI_MAX_SAVED_CREDS - 1; i >= 1; i--)
     {
-        _savedWifis[i].ssid = _savedWifis[i-1].ssid;
-        _savedWifis[i].pswd = _savedWifis[i-1].pswd;
+        _savedWifis[i].ssid = _savedWifis[i - 1].ssid;
+        _savedWifis[i].pswd = _savedWifis[i - 1].pswd;
     }
 
     _savedWifis[0].ssid = ssid;
@@ -345,7 +359,7 @@ void WifiCaptive::saveWifiCredentials(String ssid, String pass)
 
     Preferences preferences;
     preferences.begin("wificaptive", false);
-    for(int i = 0; i < WIFI_MAX_SAVED_CREDS; i++)
+    for (int i = 0; i < WIFI_MAX_SAVED_CREDS; i++)
     {
         preferences.putString(WIFI_SSID_KEY(i), _savedWifis[i].ssid);
         preferences.putString(WIFI_PSWD_KEY(i), _savedWifis[i].pswd);
@@ -364,6 +378,34 @@ void WifiCaptive::saveLastUsed(String ssid, String pass)
     preferences.begin("wificaptive", false);
     preferences.putString(WIFI_LAST_USED_SSID_KEY, ssid);
     preferences.putString(WIFI_LAST_USED_PSWD_KEY, pass);
+    preferences.end();
+}
+
+void WifiCaptive::saveDeviceConfig(bool byod, const String &deviceId, bool byos, const String &serverUrl)
+{
+    Preferences preferences;
+    preferences.begin("deviceconfig", false);
+    if (byod)
+    {
+        preferences.putString("deviceId", deviceId);
+    }
+    else
+    {
+        preferences.putString("deviceId", WiFi.macAddress());
+    }
+
+    if (byos)
+    {
+        preferences.putString("serverUrl", serverUrl);
+    
+    }
+    else
+    {
+        preferences.putString("serverUrl", _defaultBaseUrl);
+    }
+
+    _defaultBaseUrl = serverUrl.c_str();
+
     preferences.end();
 }
 
@@ -489,7 +531,7 @@ std::vector<WifiCaptive::Network> WifiCaptive::combineNetworks(
         }
     }
 
-    return combinedNetworks; 
+    return combinedNetworks;
 }
 
 bool WifiCaptive::autoConnect()
@@ -497,13 +539,14 @@ bool WifiCaptive::autoConnect()
     Log.info("Trying to autoconnect to wifi...\r\n");
     readWifiCredentials();
 
-    if (_lastUsed.ssid != "") {
+    if (_lastUsed.ssid != "")
+    {
         Log.info("Trying to connect to last used %s...\r\n", _lastUsed.ssid.c_str());
         WiFi.setSleep(0);
         WiFi.setMinSecurity(WIFI_AUTH_OPEN);
         WiFi.mode(WIFI_STA);
         connect(_lastUsed.ssid, _lastUsed.pswd);
-        
+
         // Check if connected
         if (WiFi.status() == WL_CONNECTED)
         {
@@ -529,7 +572,7 @@ bool WifiCaptive::autoConnect()
         {
             continue;
         }
-        
+
         connect(network.ssid, network.pswd);
 
         // Check if connected
@@ -542,6 +585,28 @@ bool WifiCaptive::autoConnect()
 
     Log.info("Failed to connect to any network\r\n");
     return false;
+}
+
+String WifiCaptive::getDeviceMac()
+{
+    Preferences preferences;
+    preferences.begin("deviceconfig", true);
+    String mac = preferences.getString("deviceId", WiFi.macAddress());
+    preferences.end();
+    return mac.c_str();
+}
+
+String WifiCaptive::getServerURL()
+{
+    Preferences preferences;
+    preferences.begin("deviceconfig", true);
+    String mac = preferences.getString("serverUrl", _defaultBaseUrl);
+    preferences.end();
+    return mac.c_str();
+}
+
+void WifiCaptive::setDefaultBaseUrl(String baseUrl){
+    _defaultBaseUrl = baseUrl;
 }
 
 WifiCaptive WifiCaptivePortal;

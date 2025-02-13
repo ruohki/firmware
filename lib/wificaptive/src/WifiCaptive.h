@@ -12,7 +12,6 @@
 #include <ArduinoJson.h>
 #include <ArduinoLog.h>
 
-
 #define WIFI_SSID "TRMNL"
 #define WIFI_PASSWORD NULL
 
@@ -53,6 +52,7 @@ class WifiCaptive {
         AsyncWebServer* _server;
         String _ssid = "";
         String _password = "";
+        String _defaultBaseUrl = "";
 
         std::function<void()> _resetcallback;
 
@@ -67,9 +67,11 @@ class WifiCaptive {
         void readWifiCredentials();
         void saveWifiCredentials(String ssid, String pass);
         void saveLastUsed(String ssid, String pass);
+        void saveDeviceConfig(bool byod, const String &deviceId, bool byos, const String &serverUrl);
         std::vector<WifiCredentials> matchNetworks(std::vector<Network> &scanResults, WifiCaptive::WifiCredentials wifiCredentials[]);
         std::vector<Network> getScannedUniqueNetworks(bool runScan);
         std::vector<Network> combineNetworks(std::vector<Network> &scanResults, WifiCaptive::WifiCredentials wifiCredentials[]);
+        
 
     public:
         /// @brief Starts WiFi configuration portal.
@@ -90,6 +92,17 @@ class WifiCaptive {
         /// @brief Connects to the saved SSID with the best signal strength
         /// @return True if successfully connected to saved SSID, false otherwise.
         bool autoConnect();
+        
+        /// @brief Get the device MAC
+        /// @return The device mac
+        String getDeviceMac();
+
+        /// @brief Get the server URL
+        /// @return The server URL to use
+        String getServerURL();
+        
+        /// @brief Set the base api url
+        void setDefaultBaseUrl(String baseUrl);
 };
 
 extern WifiCaptive WifiCaptivePortal;
