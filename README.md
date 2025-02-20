@@ -3,6 +3,10 @@
 ~created for the [TRMNL](https://usetrmnl.com) e-ink display.~
 
 This fork is created for the Waveshare ESP32 and 7.5inch e-ink display.
+### Features
+
+- set mac address
+- set custom server
 
 ### Problems
 
@@ -16,6 +20,7 @@ Sleep
 ### Used hardware
 
 - [Waveshare epaper ESP32 board](https://www.tinytronics.nl/nl/development-boards/microcontroller-boards/met-wi-fi/waveshare-universeel-e-paper-raw-panel-driver-board-esp32)
+
 - [Waveshare 7.5 inch E-Ink E-Paper Display](https://www.tinytronics.nl/nl/displays/e-ink/waveshare-7.5-inch-e-ink-e-paper-display)
 
 ### Config
