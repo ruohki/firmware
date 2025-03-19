@@ -34,7 +34,7 @@ bool pref_clear = false;
 uint8_t buffer[48062];    // image buffer
 char filename[1024];      // image URL
 char binUrl[1024];        // update URL
-char log_array[1024];      // log
+char log_array[1024];     // log
 char message_buffer[128]; // message to show on the screen
 uint32_t time_since_sleep;
 
@@ -43,7 +43,7 @@ bool update_firmware = false; // need to download a new firmware
 bool reset_firmware = false;  // need to reset credentials
 bool send_log = false;        // need to send logs
 bool double_click = false;
-bool log_retry = false; // need to log connection retry
+bool log_retry = false;                                              // need to log connection retry
 esp_sleep_wakeup_cause_t wakeup_reason = ESP_SLEEP_WAKEUP_UNDEFINED; // wake-up reason
 MSG current_msg = NONE;
 SPECIAL_FUNCTION special_function = SF_NONE;
@@ -51,14 +51,14 @@ RTC_DATA_ATTR uint8_t need_to_refresh_display = 1;
 
 Preferences preferences;
 
-static https_request_err_e downloadAndShow(const char *url); // download and show the image
-static void getDeviceCredentials(const char *url);           // receiveing API key and Friendly ID
-static void resetDeviceCredentials(void);                    // reset device credentials API key, Friendly ID, Wi-Fi SSID and password
-static void checkAndPerformFirmwareUpdate(void);             // OTA update
-static void goToSleep(void);                                 // sleep preparing
-static bool setClock(void);                                  // clock synchrinization
-static float readBatteryVoltage(void);                       // battery voltage reading
-static void log_POST(char *log_buffer, size_t size);         // log sending
+static https_request_err_e downloadAndShow();        // download and show the image
+static void getDeviceCredentials();                  // receiveing API key and Friendly ID
+static void resetDeviceCredentials(void);            // reset device credentials API key, Friendly ID, Wi-Fi SSID and password
+static void checkAndPerformFirmwareUpdate(void);     // OTA update
+static void goToSleep(void);                         // sleep preparing
+static bool setClock(void);                          // clock synchrinization
+static float readBatteryVoltage(void);               // battery voltage reading
+static void log_POST(char *log_buffer, size_t size); // log sending
 static void checkLogNotes(void);
 static void writeSpecialFunction(SPECIAL_FUNCTION function);
 static void writeImageToFile(const char *name, uint8_t *in_buffer, size_t size);
@@ -70,7 +70,7 @@ static uint8_t *storedLogoOrDefault(void);
 static bool saveCurrentFileName(String &name);
 static bool checkCureentFileName(String &newName);
 static DeviceStatusStamp getDeviceStatusStamp();
-bool SerializeJsonLog(DeviceStatusStamp device_status_stamp, time_t timestamp, int codeline, const char* source_file, char* log_message, uint32_t log_id);
+bool SerializeJsonLog(DeviceStatusStamp device_status_stamp, time_t timestamp, int codeline, const char *source_file, char *log_message, uint32_t log_id);
 int submitLog(const char *format, time_t time, int line, const char *file, ...);
 
 #define submit_log(format, ...) submitLog(format, getTime(), __LINE__, __FILE__, ##__VA_ARGS__);
@@ -304,7 +304,7 @@ void bl_init(void)
   {
     Log.info("%s [%d]: API key or friendly ID not saved\r\n", __FILE__, __LINE__);
     // lets get the api key and friendly ID
-    getDeviceCredentials(WifiCaptivePortal.getServerURL().c_str());
+    getDeviceCredentials();
   }
   else
   {
@@ -314,7 +314,7 @@ void bl_init(void)
   log_retry = true;
 
   // OTA checking, image checking and drawing
-  https_request_err_e request_result = downloadAndShow(WifiCaptivePortal.getServerURL().c_str());
+  https_request_err_e request_result = downloadAndShow();
   Log.info("%s [%d]: request result - %d\r\n", __FILE__, __LINE__, request_result);
 
   if (!preferences.isKey(PREFERENCES_CONNECT_API_RETRY_COUNT))
@@ -482,10 +482,21 @@ void bl_process(void)
  * @param url Server URL addrees
  * @return https_request_err_e error code
  */
-static https_request_err_e downloadAndShow(const char *url)
+static https_request_err_e downloadAndShow()
 {
   https_request_err_e result = HTTPS_NO_ERR;
-  WiFiClientSecure *client = new WiFiClientSecure;
+  WiFiClientSecure *secureClient = new WiFiClientSecure;
+  secureClient->setInsecure();
+  WiFiClient *insecureClient = new WiFiClient;
+
+  bool isHttps = true;
+  if (preferences.getString(PREFERENCES_API_URL, API_BASE_URL).indexOf("https://") == -1)
+  {
+    isHttps = false;
+  }
+
+  // define client depending on the isHttps variable
+  WiFiClient *client = isHttps ? secureClient : insecureClient;
 
   if (!client)
   {
@@ -494,18 +505,18 @@ static https_request_err_e downloadAndShow(const char *url)
     return HTTPS_UNABLE_TO_CONNECT;
   }
 
-  client->setInsecure();
-
   { // Add a scoping block for HTTPClient https to make sure it is destroyed before WiFiClientSecure *client is
 
     HTTPClient https;
     Log.info("%s [%d]: RSSI: %d\r\n", __FILE__, __LINE__, WiFi.RSSI());
     Log.info("%s [%d]: [HTTPS] begin /api/display/ ...\r\n", __FILE__, __LINE__);
     char new_url[200];
-    strcpy(new_url, url);
+    strcpy(new_url, preferences.getString(PREFERENCES_API_URL, API_BASE_URL).c_str());
     strcat(new_url, "/api/display/");
 
     String api_key = "";
+
+    Log.info("%s [%d]: [HTTPS] URL: %s\r\n", __FILE__, __LINE__, new_url);
     if (preferences.isKey(PREFERENCES_API_KEY))
     {
       api_key = preferences.getString(PREFERENCES_API_KEY, PREFERENCES_API_KEY_DEFAULT);
@@ -564,6 +575,8 @@ static https_request_err_e downloadAndShow(const char *url)
     https.addHeader("Battery-Voltage", String(battery_voltage));
     https.addHeader("FW-Version", fw_version);
     https.addHeader("RSSI", String(WiFi.RSSI()));
+    https.addHeader("Width", String(display_width()));
+    https.addHeader("Height", String(display_height()));
 
     Log.info("%s [%d]: Special function - %d\r\n", __FILE__, __LINE__, special_function);
     if (special_function != SF_NONE)
@@ -1043,10 +1056,6 @@ static https_request_err_e downloadAndShow(const char *url)
       }
     }
 
-
-    //https.end();
-    
-
     if (status && !update_firmware && !reset_firmware)
     {
       status = false;
@@ -1087,7 +1096,7 @@ static https_request_err_e downloadAndShow(const char *url)
         return HTTPS_REQUEST_FAILED;
       }
       Log.info("%s [%d]: Content size: %d\r\n", __FILE__, __LINE__, https.getSize());
-      
+
       uint32_t counter = 0;
       if (https.getSize() != DISPLAY_BMP_IMAGE_SIZE)
       {
@@ -1105,7 +1114,7 @@ static https_request_err_e downloadAndShow(const char *url)
 
       uint32_t timer = millis();
       while (stream->available() < 4000 && millis() - timer < 1000)
-      ;
+        ;
 
       Log.info("%s [%d]: Stream available: %d\r\n", __FILE__, __LINE__, stream->available());
 
@@ -1229,27 +1238,40 @@ static https_request_err_e downloadAndShow(const char *url)
   return result;
 }
 
-
-
 /**
  * @brief Function to getting the friendly id and API key
- * @param url Server URL addrees
  * @return none
  */
-static void getDeviceCredentials(const char *url)
+static void getDeviceCredentials()
 {
-  WiFiClientSecure *client = new WiFiClientSecure;
+  WiFiClientSecure *secureClient = new WiFiClientSecure;
+  WiFiClient *insecureClient = new WiFiClient;
+
+  secureClient->setInsecure();
+
+  bool isHttps = true;
+  if (preferences.getString(PREFERENCES_API_URL, API_BASE_URL).indexOf("https://") == -1)
+  {
+    isHttps = false;
+  }
+
+  // define client depending on the isHttps variable
+  WiFiClient *client = isHttps ? secureClient : insecureClient;
+
   if (client)
   {
-    client->setInsecure();
     {
       // Add a scoping block for HTTPClient https to make sure it is destroyed before WiFiClientSecure *client is
       HTTPClient https;
 
       Log.info("%s [%d]: [HTTPS] begin /api/setup/ ...\r\n", __FILE__, __LINE__);
       char new_url[200];
-      strcpy(new_url, url);
+      strcpy(new_url, preferences.getString(PREFERENCES_API_URL, API_BASE_URL).c_str());
       strcat(new_url, "/api/setup/");
+
+      char fw_version[30];
+      sprintf(fw_version, "%d.%d.%d", FW_MAJOR_VERSION, FW_MINOR_VERSION, FW_PATCH_VERSION);
+
       if (https.begin(*client, new_url))
       { // HTTPS
         Log.info("%s [%d]: RSSI: %d\r\n", __FILE__, __LINE__, WiFi.RSSI());
@@ -1257,8 +1279,9 @@ static void getDeviceCredentials(const char *url)
         // start connection and send HTTP header
         String mac = WifiCaptivePortal.getDeviceMac().c_str();
 
-        https.addHeader("ID", mac);
-        Log.info("%s [%d]: Device MAC address: %s\r\n", __FILE__, __LINE__, mac);
+        https.addHeader("ID", WiFi.macAddress());
+        https.addHeader("FW-Version", fw_version);
+        Log.info("%s [%d]: Device MAC address: %s\r\n", __FILE__, __LINE__, WiFi.macAddress().c_str());
 
         int httpCode = https.GET();
 
@@ -1503,10 +1526,22 @@ static void resetDeviceCredentials(void)
  */
 static void checkAndPerformFirmwareUpdate(void)
 {
-  WiFiClientSecure *client = new WiFiClientSecure;
+  WiFiClientSecure *secureClient = new WiFiClientSecure;
+  WiFiClient *insecureClient = new WiFiClient;
+
+  secureClient->setInsecure();
+
+  bool isHttps = true;
+  if (preferences.getString(PREFERENCES_API_URL, API_BASE_URL).indexOf("https://") == -1)
+  {
+    isHttps = false;
+  }
+
+  // define client depending on the isHttps variable
+  WiFiClient *client = isHttps ? secureClient : insecureClient;
+
   if (client)
   {
-    client->setInsecure();
     HTTPClient https;
     if (https.begin(*client, binUrl))
     {
@@ -1580,7 +1615,7 @@ static void goToSleep(void)
   Log.info("%s [%d]: time to sleep - %d\r\n", __FILE__, __LINE__, time_to_sleep);
   preferences.putUInt(PREFERENCES_LAST_SLEEP_TIME, getTime());
   preferences.end();
-  esp_sleep_enable_timer_wakeup(time_to_sleep * SLEEP_uS_TO_S_FACTOR);
+  esp_sleep_enable_timer_wakeup((uint64_t)time_to_sleep * SLEEP_uS_TO_S_FACTOR);
   #if SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP
   esp_deep_sleep_enable_gpio_wakeup(1 << PIN_INTERRUPT, ESP_GPIO_WAKEUP_GPIO_HIGH);
   #elif WAVESHARE_BOARD_WITH_PINS
@@ -1603,7 +1638,7 @@ static bool setClock()
 
   configTime(0, 0, "pool.ntp.org", "time.google.com", "time.windows.com");
   Log.info("%s [%d]: Time synchronization...\r\n", __FILE__, __LINE__);
-  
+
   // Wait for time to be set
   if (getLocalTime(&timeinfo))
   {
@@ -1660,7 +1695,7 @@ static void log_POST(char *log_buffer, size_t size)
   }
 
   LogApiInput input{api_key, log_buffer};
-  auto result = submitLogToApi(input, WifiCaptivePortal.getServerURL().c_str());
+  auto result = submitLogToApi(input, preferences.getString(PREFERENCES_API_URL, API_BASE_URL).c_str());
   if (!result)
   {
     Log_info("Was unable to send log to API; saving locally for later.");
@@ -1705,7 +1740,7 @@ static void checkLogNotes(void)
     Log.info("%s [%d]: need to send the log\r\n", __FILE__, __LINE__);
 
     LogApiInput input{api_key, log.c_str()};
-    result = submitLogToApi(input, WifiCaptivePortal.getServerURL().c_str());
+    result = submitLogToApi(input, preferences.getString(PREFERENCES_API_URL, API_BASE_URL).c_str());
   }
   else
   {
@@ -1833,7 +1868,8 @@ static void wifiErrorDeepSleep()
 
   Log_info("WIFI connection failed! Retry count: %d \n", retry_count);
 
-  switch (retry_count){
+  switch (retry_count)
+  {
   case 1:
     preferences.putUInt(PREFERENCES_SLEEP_TIME_KEY, WIFI_CONNECT_RETRY_TIME::WIFI_FIRST_RETRY);
     break;
@@ -1859,25 +1895,25 @@ static void wifiErrorDeepSleep()
 
 DeviceStatusStamp getDeviceStatusStamp()
 {
-    DeviceStatusStamp deviceStatus = {};
+  DeviceStatusStamp deviceStatus = {};
 
-    char fw_version[30]; 
-    sprintf(fw_version, "%d.%d.%d", FW_MAJOR_VERSION, FW_MINOR_VERSION, FW_PATCH_VERSION);
+  char fw_version[30];
+  sprintf(fw_version, "%d.%d.%d", FW_MAJOR_VERSION, FW_MINOR_VERSION, FW_PATCH_VERSION);
 
-    deviceStatus.wifi_rssi_level = WiFi.RSSI();
-    parseWifiStatusToStr(deviceStatus.wifi_status, sizeof(deviceStatus.wifi_status), WiFi.status());
-    deviceStatus.refresh_rate = preferences.getUInt(PREFERENCES_SLEEP_TIME_KEY);
-    deviceStatus.time_since_last_sleep = time_since_sleep;
-    snprintf(deviceStatus.current_fw_version, sizeof(deviceStatus.current_fw_version), "%d.%d.%d", FW_MAJOR_VERSION, FW_MINOR_VERSION, FW_PATCH_VERSION);
-    parseSpecialFunctionToStr(deviceStatus.special_function, special_function);
-    deviceStatus.battery_voltage = readBatteryVoltage();
-    parseWakeupReasonToStr(deviceStatus.wakeup_reason, sizeof(deviceStatus.wakeup_reason), esp_sleep_get_wakeup_cause());
-    deviceStatus.free_heap_size = ESP.getFreeHeap();
+  deviceStatus.wifi_rssi_level = WiFi.RSSI();
+  parseWifiStatusToStr(deviceStatus.wifi_status, sizeof(deviceStatus.wifi_status), WiFi.status());
+  deviceStatus.refresh_rate = preferences.getUInt(PREFERENCES_SLEEP_TIME_KEY);
+  deviceStatus.time_since_last_sleep = time_since_sleep;
+  snprintf(deviceStatus.current_fw_version, sizeof(deviceStatus.current_fw_version), "%d.%d.%d", FW_MAJOR_VERSION, FW_MINOR_VERSION, FW_PATCH_VERSION);
+  parseSpecialFunctionToStr(deviceStatus.special_function, special_function);
+  deviceStatus.battery_voltage = readBatteryVoltage();
+  parseWakeupReasonToStr(deviceStatus.wakeup_reason, sizeof(deviceStatus.wakeup_reason), esp_sleep_get_wakeup_cause());
+  deviceStatus.free_heap_size = ESP.getFreeHeap();
 
-    return deviceStatus;
+  return deviceStatus;
 }
 
-bool SerializeJsonLog(DeviceStatusStamp device_status_stamp, time_t timestamp, int codeline, const char* source_file, char* log_message, uint32_t log_id)
+bool SerializeJsonLog(DeviceStatusStamp device_status_stamp, time_t timestamp, int codeline, const char *source_file, char *log_message, uint32_t log_id)
 {
   JsonDocument json_log;
 
