@@ -127,20 +127,6 @@ void WifiCaptive::setUpWebserver(AsyncWebServer &server, const IPAddress &localI
 		request->send(200, "application/json", message); });
 
     server.addHandler(handler);
-    
-    AsyncCallbackJsonWebHandler *configHandler = new AsyncCallbackJsonWebHandler("/save-config", [&](AsyncWebServerRequest *request, JsonVariant &json)
-                                                                                 {
-        JsonObject data = json.as<JsonObject>();
-        bool byod = data["byod"];
-        String deviceId = data["deviceId"];
-        bool byos = data["byos"];
-        String serverUrl = data["serverUrl"];
-        // Save the configuration using the new member function:
-        saveDeviceConfig(byod, deviceId, byos, serverUrl);
-        String message = "{ \"success\": true }";
-        request->send(200, "application/json", message); });
-
-    server.addHandler(configHandler);
 
     server.onNotFound([](AsyncWebServerRequest *request)
                       { request->redirect(LocalIPURL); });
@@ -657,28 +643,6 @@ bool WifiCaptive::autoConnect()
 
     Log.info("Failed to connect to any network\r\n");
     return false;
-}
-
-String WifiCaptive::getDeviceMac()
-{
-    Preferences preferences;
-    preferences.begin("deviceconfig", true);
-    String mac = preferences.getString("deviceId", WiFi.macAddress());
-    preferences.end();
-    return mac.c_str();
-}
-
-String WifiCaptive::getServerURL()
-{
-    Preferences preferences;
-    preferences.begin("deviceconfig", true);
-    String mac = preferences.getString("serverUrl", _defaultBaseUrl);
-    preferences.end();
-    return mac.c_str();
-}
-
-void WifiCaptive::setDefaultBaseUrl(String baseUrl){
-    _defaultBaseUrl = baseUrl;
 }
 
 WifiCaptive WifiCaptivePortal;
