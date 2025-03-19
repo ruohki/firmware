@@ -126,7 +126,7 @@ void bl_init(void)
 
   #if SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP 
   if (wakeup_reason == ESP_SLEEP_WAKEUP_GPIO)
-  #elif WAVESHARE_BOARD
+  #elif WAVESHARE_BOARD_WITH_PINS
   if (wakeup_reason == ESP_SLEEP_WAKEUP_EXT0)
   #endif
   {
@@ -561,14 +561,7 @@ static https_request_err_e downloadAndShow(const char *url)
     
     https.addHeader("Access-Token", api_key);
     https.addHeader("Refresh-Rate", String(refresh_rate));
-    std::string macStd(mac.c_str());
-    bool isValidMac = std::regex_match(macStd, std::regex("^(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$"));
-
-    if(isValidMac){
-      https.addHeader("Battery-Voltage", String(battery_voltage));
-    }else{
-      https.addHeader("Battery-Voltage", "4.2");
-    }
+    https.addHeader("Battery-Voltage", String(battery_voltage));
     https.addHeader("FW-Version", fw_version);
     https.addHeader("RSSI", String(WiFi.RSSI()));
 
@@ -1590,8 +1583,8 @@ static void goToSleep(void)
   esp_sleep_enable_timer_wakeup(time_to_sleep * SLEEP_uS_TO_S_FACTOR);
   #if SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP
   esp_deep_sleep_enable_gpio_wakeup(1 << PIN_INTERRUPT, ESP_GPIO_WAKEUP_GPIO_HIGH);
-  #elif WAVESHARE_BOARD
-  esp_sleep_enable_ext0_wakeup(GPIO_NUM_32, HIGH);
+  #elif WAVESHARE_BOARD_WITH_PINS
+  esp_sleep_enable_ext0_wakeup(PIN_WAKEUP, LOW);
   #endif
   esp_deep_sleep_start();
 }

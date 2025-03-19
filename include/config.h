@@ -45,9 +45,13 @@ enum WIFI_CONNECT_RETRY_TIME // Time to sleep before trying to connect to the Wi
     WIFI_THIRD_RETRY = 300
 };
 
-#define PIN_RESET 9
-#define PIN_INTERRUPT 2
-#define PIN_BATTERY 3
+#define PIN_RESET 0
+#define PIN_INTERRUPT 35
+#define PIN_BATTERY 36
+
+#ifdef WAVESHARE_BOARD_WITH_PINS
+#define PIN_WAKEUP GPIO_NUM_35
+#endif
 
 #define BUTTON_HOLD_TIME 5000
 
